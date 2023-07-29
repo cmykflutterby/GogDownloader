@@ -6,3 +6,8 @@
 /composer.lock
 /gog-downloader.db
 /bin/appversion
+/config/packages/cache.yaml
+/GOG-Downloads
+/*.db
+/*.csv
+/gog-downloader

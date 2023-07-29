@@ -44,7 +44,7 @@ final class DownloadCommand extends Command
     {
         $defaultDirectory = $_ENV['DOWNLOAD_DIRECTORY']
             ?? $this->persistence->getSetting(Setting::DownloadPath)
-            ?? getcwd();
+            ?? getcwd(). "/GOG-Downloads";
         $this
             ->setDescription('Downloads all files from the local database (see update command). Can resume downloads unless --no-verify is specified.')
             ->addArgument(
@@ -122,6 +122,18 @@ final class DownloadCommand extends Command
                 'Set the idle timeout in seconds for http requests',
                 3,
             )
+            ->addOption(
+                'dry-run',
+                null,
+                InputOption::VALUE_NONE,
+                'Simulates task without downloading any data',
+            ) 
+            ->addOption(
+                'create-md5',
+                null,
+                InputOption::VALUE_NONE,
+                'Output MD5 checksum files. Will create files even during dry-run',
+            )                        
         ;
     }
 
@@ -135,6 +147,8 @@ final class DownloadCommand extends Command
         $englishFallback = $input->getOption('language-fallback-english');
         $excludeLanguage = Language::tryFrom($input->getOption('exclude-game-with-language') ?? '');
         $timeout = $input->getOption('idle-timeout');
+        $dryRun = $input->getOption('dry-run');
+        $createMD5 = $input->getOption('create-md5');
 
         if ($language !== null && $language !== Language::English && !$englishFallback) {
             $io->warning("GOG often has multiple language versions inside the English one. Those game files will be skipped. Specify --language-fallback-english to include English versions if your language's version doesn't exist.");
@@ -198,6 +212,8 @@ final class DownloadCommand extends Command
                         $download,
                         $operatingSystem,
                         $io,
+                        $dryRun,
+                        $createMD5,
                     ) {
                         $progress = $io->createProgressBar();
                         $progress->setMessage('Starting...');
@@ -233,7 +249,28 @@ final class DownloadCommand extends Command
                             return;
                         }
 
-                        $targetFile = "{$this->getTargetDir($input, $game)}/{$this->downloadManager->getFilename($download, $timeout)}";
+                        $createFiles = !$dryRun;
+                        $contentDir = "{$this->getTargetDir($input, $game, $createFiles)}";
+                        $contentFile = "{$this->downloadManager->getFilename($download, $timeout)}";
+                        if ($createMD5 && $download->md5) {
+                            $md5File = $contentFile.".md5";
+                            $targetMD5File = $contentDir. '/' .$md5File;
+                            try {
+                                if (!is_dir($contentDir)) {
+                                    mkdir($contentDir, recursive: true);
+                                }
+                                if (!file_exists($targetMD5File)) {
+                                    $fh = fopen($targetMD5File, 'w');
+                                    fwrite($fh, $download->md5);
+                                    fclose($fh);
+                                }
+                            } catch (Throwable $e) {
+                                $io->error("Cannot create MD5 file: ".$e);
+                                return self::FAILURE;
+                            }
+                        }
+
+                        $targetFile = $contentDir. '/' .$contentFile;
                         $startAt = null;
                         if (($download->md5 || $noVerify) && file_exists($targetFile)) {
                             $md5 = $noVerify ? '' : $this->hashCalculator->getHash($targetFile);
@@ -255,9 +292,17 @@ final class DownloadCommand extends Command
                             $startAt = filesize($targetFile);
                         }
 
+                        $progress->setMessage("{$download->name} ({$download->platform}, {$download->language})");
+
+                        if ($dryRun) {
+                            $progress->setMaxSteps($download->size);
+                            $progress->finish();
+                            $io->newLine();
+                            return;
+                        }
+
                         $progress->setMaxSteps(0);
                         $progress->setProgress(0);
-                        $progress->setMessage("{$download->name} ({$download->platform}, {$download->language})");
 
                         $responses = $this->downloadManager->download($download, function (int $current, int $total) use ($progress, $output) {
                             if ($total > 0) {
@@ -301,7 +346,7 @@ final class DownloadCommand extends Command
         return self::SUCCESS;
     }
 
-    private function getTargetDir(InputInterface $input, GameDetail $game): string
+    private function getTargetDir(InputInterface $input, GameDetail $game, bool $create = true): string
     {
         $dir = $input->getArgument('directory');
         if (!str_starts_with($dir, '/')) {
@@ -312,12 +357,13 @@ final class DownloadCommand extends Command
         $title = preg_replace('@_{2,}@', '_', $title);
 
         $dir = "{$dir}/{$title}";
-        if (!is_dir($dir)) {
+
+        if (!is_dir($dir) && $create) {
             mkdir($dir, recursive: true);
         }
 
         return $dir;
-    }
+    }  
 
     private function getBytesCallable(callable $targetMethod): callable
     {

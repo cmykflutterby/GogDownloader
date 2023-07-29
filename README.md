@@ -2,9 +2,10 @@
 
 PHP based tool to download the games you have bought on GOG to your hard drive.
 
-Requires `php 8.1+` (with simplexml and json) or `docker`.
+Requires `php 8.2+` (with simplexml and json).
 
-By default, the games are saved in the directory you run the commands from, you can also specify your own.
+By default, the games are saved in a sub-directory you run the commands from named `GOG-Downloads` if no reasonable default 
+can be found, or you can specify your own.
 
 You can run `gog-downloader help` or `gog-downloader help [subcommand]` for more info.
 
@@ -14,6 +15,30 @@ You can run `gog-downloader help` or `gog-downloader help [subcommand]` for more
 - Checks that the downloaded files are valid
 - Resume partially downloaded files instead of downloading them whole again
 - Can be easily put into cron jobs
+
+## How to run
+
+If your local system has php, you can run it locally, either by using `php gog-downloader` or by running `./gog-downloader`.
+This has been tested using WSL in Windows 11 using the following command from withing the `GogDownloader` folder:
+
+- `php ./bin/app.php`
+
+> If you are using WSL instead of Docker, create a symlink to facilitate ease of use. 
+> From inside the project folder, try: `ln -s ./bin/app.php gog-downloader`
+
+You should now be able to run commands such as:
+
+- `php ./gog-downloader`
+
+> If you run into permission problems, make the `gog-downloader` file executable by running `chmod +x gog-downloader`
+
+### Docker
+
+For Docker instructions and support, get the latest version of the original at: 
+[latest release](https://github.com/RikudouSage/GogDownloader/releases/latest)
+
+You can also download the latest development version from [here](https://nightly.link/RikudouSage/GogDownloader/workflows/build-latest.yaml/main/gog-downloader.zip).
+This version will have new features sooner than standard release, but you may also encounter new bugs.
 
 ## Usage
 
@@ -143,69 +168,28 @@ So to download only games that support Czech either in-game or as a separate dow
 - `gog-downloader update --clear --language cz` (the `--clear` is there to delete any metadata from previous `update` runs)
 - `gog-downloader download --language cz --language-fallback-english`
 
-## Download
+If you would like `download` to also create stand-alone MD5 checksum files, add `--create-md5` to your command.
+This is a good way to support validation for other tools or to test character or filename limits of remote filesystems
+you may want to use for storing your game files.
 
-If you want to use the docker version, read below.
+- `gog-downloader download --create-md5` (this will add an MD5 file for each download)
 
-If your local system has php, you can download the [latest release](https://github.com/RikudouSage/GogDownloader/releases/latest)
-and run it locally, either by using `php gog-downloader` or by running `./gog-downloader`.
+If you'd like to test your filters without downloading files, use the `dry-run` option:
 
-> If you run into permission problems, make the `gog-downloader` file executable by running `chmod +x gog-downloader`
+- `gog-downloader download --dry-run` (the output will display the resulting files without downloading anything)
 
-You can also download the latest development version from [here](https://nightly.link/RikudouSage/GogDownloader/workflows/build-latest.yaml/main/gog-downloader.zip).
-This version will have new features sooner than standard release, but you may also encounter new bugs.
+Dry-run can be used in conjunction with `create-md5` to test paths, filters and other settings while building a minimal structure:
 
-### Docker
+- `gog-downloader download --dry-run --create-md5` (this will create folder structures with only MD5 files for each download)
 
-You can use the docker image `rikudousage/gog-downloader`. This is especially suitable for NAS servers
-which often don't have up-to-date packages but support docker.
+## Exporting the database
 
-It doesn't offer any configuration, but you can mount two volumes, one for configuration (under `/Configs`)
-and the other for downloads (under `/Downloads`).
+For exporting the database, use the `export-database` command: `gog-downloader export-database`.
 
-You can use specific versions as tags or `latest` (the newest stable version) or `dev` (the newest unstable version).
+This will create an Excel-compatible CSV file that can be used to plan filters and space requirements for large collections.
 
-Example 1:
-
-- `docker run --rm -it --init -v "$(pwd)/Configs:/Configs" -v "$(pwd)/Downloads:/Downloads" rikudousage/gog-downloader:latest`
-
-Explanation:
-
-- This creates an interactive container (needed for logging in and other stuff) that gets removed immediately after use.
-- The config directory is mounted to a directory `Configs` created in the current directory.
-- The downloads directory is mounted to a directory `Downloads` created in the current directory.
-- The latest stable version is used.
-- The files and configs are created under the `root` user which may pose some permission issues
-  - These may be resolved by running `sudo chown -R $(id -u):$(id -g) Configs Downloads` after every download session
-  - To download directly under your current user, see the next example
-
-Example 2:
-
-- `mkdir -p Configs Downloads; docker run --rm -it --init -v "/etc/passwd:/etc/passwd:ro" -v "$(pwd)/Configs:/Configs" -v "$(pwd)/Downloads:/Downloads" --user $(id -u) rikudousage/gog-downloader:latest`
-
-Explanation:
-
-- This first creates the directories `Configs` and `Downloads` under your current user
-- It mounts the `/etc/passwd` (which contrary to its name doesn't contain passwords) file to the container in read-only mode
-  so the container knows the list of your local users
-- It sets the user running inside container as your current user
-- Everything else is the same as in the previous example
-- No more permission issues with downloaded files and configs
-
-#### Aliasing
-
-Typing such commands all the time is tiring, that's why I recommend creating an alias:
-
-- `alias gog-downloader='docker run --rm -it --init -v $(pwd)/Configs:/Configs -v $(pwd)/Downloads:/Downloads rikudousage/gog-downloader:latest'`
-  - this aliases the command `gog-downloader` to the first example
-- `alias gog-downloader='mkdir -p Configs Downloads; docker run --rm -it --init -v /etc/passwd:/etc/passwd:ro -v $(pwd)/Configs:/Configs -v $(pwd)/Downloads:/Downloads --user $(id -u) rikudousage/gog-downloader:latest'`
-  - this aliases the command `gog-downloader` to the second example
-
-Afterwards you can use the `gog-downloader` command the same as if you installed it locally,
-for example `gog-downloader code-login`.
-
-If you add the alias line into your `~/.bashrc` or `~/.zshrc` (depending on your shell), the `gog-downloader` command
-will be available every time you start a command line shell.
+- `gog-downloader export-database` 
+- `gog-downloader export-database --filename "export-mydate.csv"` 
 
 ## Commands
 
@@ -302,6 +286,26 @@ Options:
   -v|vv|vvv, --verbose             Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug
 ```
 
+### export-database (or export)
+
+```
+Description:
+  Exports the games/files database to Excel-compatible CSV
+
+Usage:
+  export-database [options]
+  export
+
+Options:
+      --filename=FILENAME  Set a filename for the output CSV [default: "game.db.csv"]
+  -h, --help               Display help for the given command. When no command is given display help for the list command
+  -q, --quiet              Do not output any message
+  -V, --version            Display this application version
+      --ansi|--no-ansi     Force (or disable --no-ansi) ANSI output
+  -n, --no-interaction     Do not ask any interactive question
+  -v|vv|vvv, --verbose     Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug
+  ```
+
 ### download
 
 ```
@@ -325,6 +329,8 @@ Options:
       --retry-delay=RETRY-DELAY                                The delay in seconds between each retry. [default: 1]
       --skip-errors                                            Skip games that for whatever reason couldn't be downloaded
       --idle-timeout=IDLE-TIMEOUT                              Set the idle timeout in seconds for http requests [default: 3]
+      --dry-run                                                Simulates task without downloading any data
+      --create-md5                                             Output MD5 checksum files. Will create files even during dry-run      
   -h, --help                                                   Display help for the given command. When no command is given display help for the list command
   -q, --quiet                                                  Do not output any message
   -V, --version                                                Display this application version

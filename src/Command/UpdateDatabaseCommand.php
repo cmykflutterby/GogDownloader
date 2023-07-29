@@ -174,7 +174,7 @@ final class UpdateDatabaseCommand extends Command
             }
             $progressBar?->finish();
         }
-
+        $io->newLine();
         $io->success('Local data successfully updated');
 
         return self::SUCCESS;
