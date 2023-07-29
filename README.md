@@ -18,19 +18,28 @@ You can run `gog-downloader help` or `gog-downloader help [subcommand]` for more
 
 ## How to run
 
-If your local system has php, you can run it locally, either by using `php gog-downloader` or by running `./gog-downloader`.
-This has been tested using WSL in Windows 11 using the following command from withing the `GogDownloader` folder:
+If your local system has php, you can run the PHAR version locally, either by using `php gog-downloader` or by running `./gog-downloader`.
+
+> If you run into permission problems, make the `gog-downloader` file executable by running `chmod +x gog-downloader`
+
+If you are running the code directly (unzipped, non-phar), you will have to start it with:
 
 - `php ./bin/app.php`
 
-> If you are using WSL instead of Docker, create a symlink to facilitate ease of use. 
-> From inside the project folder, try: `ln -s ./bin/app.php gog-downloader`
+If you are making changes or alterations to the code, remember to disable caching while you develop by 
+creating the file `/config/packages/cache.yaml` with the following content:
 
-You should now be able to run commands such as:
+```
+framework:
+    cache:
+        app: cache.adapter.null
+        system: cache.adapter.null
 
-- `php ./gog-downloader`
-
-> If you run into permission problems, make the `gog-downloader` file executable by running `chmod +x gog-downloader`
+services:
+    cache.adapter.null:
+        class: Symfony\Component\Cache\Adapter\NullAdapter
+        arguments: [~] # small trick to avoid arguments errors on compile-time.
+```
 
 ### Docker
 
